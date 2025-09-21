@@ -3,154 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kantin Sekolah</title>
+  <title>Login Siswa</title>
   <style>
-    body { background:#121212; color:white; font-family:Arial, sans-serif; margin:0; padding:20px; }
-    h1 { text-align:center; }
-    .menu-item { background:#1e1e1e; padding:15px; margin:10px 0; border-radius:10px; display:flex; justify-content:space-between; align-items:center; }
-    .menu-item button { background:#007bff; border:none; padding:6px 12px; border-radius:8px; color:white; cursor:pointer; font-size:16px; }
-    .menu-item button:hover { background:#0056b3; }
-    #cart-summary { margin-top:20px; background:#1e1e1e; padding:15px; border-radius:10px; }
-    #cart-summary table { width:100%; border-collapse:collapse; margin-bottom:10px; }
-    #cart-summary th, #cart-summary td { padding:8px; text-align:center; border-bottom:1px solid #333; }
-    .center { text-align:center; }
-    .checkout-btn { background:#28a745; border:none; padding:10px 20px; border-radius:8px; color:white; cursor:pointer; font-size:18px; }
-    .checkout-btn:hover { background:#1e7e34; }
+    body {
+      background-color: #121212;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-box {
+      background: #1e1e1e;
+      padding: 25px;
+      border-radius: 12px;
+      width: 320px;
+      text-align: center;
+      box-shadow: 0px 4px 8px rgba(0,0,0,0.6);
+    }
+    .login-box h2 {
+      margin-bottom: 20px;
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+    }
+    button {
+      background: #007BFF;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
   </style>
 </head>
 <body>
-  <h1>🍔 Kantin Sekolah</h1>
-  <div id="menu"></div>
-
-  <div id="cart-summary">
-    <h2>🛒 Keranjang</h2>
-    <table id="orderTable">
-      <thead>
-        <tr>
-          <th>Menu</th>
-          <th>Jumlah</th>
-          <th>Harga</th>
-          <th>Subtotal</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <p>Total Item: <span id="totalItems">0</span></p>
-    <p>Total Harga: Rp<span id="totalPrice">0</span></p>
-    <div class="center">
-      <button class="checkout-btn" onclick="checkout()">Pesan Sekarang</button>
-    </div>
+  <div class="login-box">
+    <h2>Login Siswa</h2>
+    <label>Nama:</label><br>
+    <input type="text" id="nama" placeholder="Masukkan Nama"><br>
+    <label>Kelas:</label><br>
+    <input type="text" id="kelas" placeholder="Masukkan Kelas"><br>
+    <button onclick="login()">Simpan</button>
   </div>
 
   <script>
-    const menu = [
-      { nama:"Nasi Goreng", harga:12000 },
-      { nama:"Mie Ayam", harga:10000 },
-      { nama:"Es Teh", harga:5000 },
-      { nama:"Es Jeruk", harga:6000 }
-    ];
+    function login() {
+      let nama = document.getElementById("nama").value;
+      let kelas = document.getElementById("kelas").value;
 
-    let cart = [];
-
-    function renderMenu() {
-      const menuDiv = document.getElementById("menu");
-      menuDiv.innerHTML = "";
-      menu.forEach((item, index) => {
-        const div = document.createElement("div");
-        div.className = "menu-item";
-        const cartItem = cart.find(c => c.menu === item.nama);
-        const jumlah = cartItem ? cartItem.jumlah : 0;
-        div.innerHTML = `
-          <span>${item.nama} - Rp${item.harga.toLocaleString()}</span>
-          <div>
-            <button onclick="updateCart(${index}, -1)">-</button>
-            <span style="margin:0 10px;">${jumlah}</span>
-            <button onclick="updateCart(${index}, 1)">+</button>
-          </div>
-        `;
-        menuDiv.appendChild(div);
-      });
-    }
-
-    function updateCart(index, delta) {
-      const item = menu[index];
-      const cartItem = cart.find(c => c.menu === item.nama);
-
-      if (cartItem) {
-        cartItem.jumlah += delta;
-        if (cartItem.jumlah <= 0) {
-          cart = cart.filter(c => c.menu !== item.nama);
-        }
-      } else if (delta > 0) {
-        cart.push({ menu:item.nama, harga:item.harga, jumlah:1 });
+      if (nama && kelas) {
+        localStorage.setItem("nama", nama);
+        localStorage.setItem("kelas", kelas);
+        window.location.href = "index.html";
+      } else {
+        alert("Harap isi nama dan kelas!");
       }
-      renderMenu();
-      updateSummary();
     }
-
-    function updateSummary() {
-      const tbody = document.querySelector("#orderTable tbody");
-      tbody.innerHTML = "";
-      let totalItems = 0;
-      let totalPrice = 0;
-
-      cart.forEach(item => {
-        const subtotal = item.jumlah * item.harga;
-        totalItems += item.jumlah;
-        totalPrice += subtotal;
-
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${item.menu}</td>
-          <td>${item.jumlah}</td>
-          <td>Rp${item.harga.toLocaleString()}</td>
-          <td>Rp${subtotal.toLocaleString()}</td>
-        `;
-        tbody.appendChild(row);
-      });
-
-      document.getElementById("totalItems").textContent = totalItems;
-      document.getElementById("totalPrice").textContent = totalPrice.toLocaleString();
-    }
-
-    async function checkout() {
-      if (cart.length === 0) { alert("Keranjang kosong!"); return; }
-      let nama = localStorage.getItem("nama") || prompt("Masukkan Nama:");
-      let kelas = localStorage.getItem("kelas") || prompt("Masukkan Kelas:");
-      localStorage.setItem("nama", nama);
-      localStorage.setItem("kelas", kelas);
-
-      let pesananText = cart.map(i => `${i.menu} x${i.jumlah}`).join(", ");
-      let totalHarga = cart.reduce((acc, i) => acc + i.harga * i.jumlah, 0);
-
-      // Simpan ke localStorage (untuk konfirmasi.html)
-      let allOrders = JSON.parse(localStorage.getItem("orders") || "[]");
-      allOrders.push({
-        id: Date.now(),
-        nama, kelas,
-        pesanan: cart,
-        total: totalHarga
-      });
-      localStorage.setItem("orders", JSON.stringify(allOrders));
-
-      // Kirim ke Discord
-      let webhookURL = "https://discord.com/api/webhooks/1419225376974045336/wYucIqsz8O0yIwkEz7wuTJrmsY8edn3BT-lRBc6-9rzlArF9hm1qTFYsaDIj4it9kceU";
-      let message = {
-        content: `📢 Pesanan Baru!\n👤 Nama: ${nama}\n🏫 Kelas: ${kelas}\n🍽 Pesanan: ${pesananText}\n💰 Total: Rp${totalHarga.toLocaleString()}`
-      };
-      await fetch(webhookURL, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(message)
-      });
-
-      cart = [];
-      renderMenu(); updateSummary();
-      alert("Pesanan berhasil dikirim!");
-    }
-
-    renderMenu();
-    updateSummary();
   </script>
 </body>
 </html>
