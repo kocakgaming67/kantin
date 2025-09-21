@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konfirmasi Pesanan</title>
+  <style>
+    body { background:#121212; color:white; font-family:Arial, sans-serif; padding:20px; margin:0; }
+    h1 { text-align:center; margin-bottom:20px; }
+    .order-box { background:#1e1e1e; padding:15px; margin-bottom:15px; border-radius:10px; }
+    .order-box h3 { margin:0 0 10px; }
+    .btn { border:none; padding:8px 12px; border-radius:8px; color:white; cursor:pointer; }
+    .btn-done { background:#28a745; }
+    .btn-done:hover { background:#1e7e34; }
+  </style>
+</head>
+<body>
+  <h1>Daftar Pesanan</h1>
+  <div id="orders"></div>
+
+  <script>
+    function loadOrders() {
+      let orders = JSON.parse(localStorage.getItem("orders") || "[]");
+      let ordersEl = document.getElementById("orders");
+      ordersEl.innerHTML = "";
+
+      if (orders.length === 0) {
+        ordersEl.innerHTML = "<p>Belum ada pesanan.</p>";
+        return;
+      }
+
+      orders.forEach((order) => {
+        let pesananList = order.pesanan.map(i => `${i.menu} x${i.jumlah}`).join(", ");
+        let div = document.createElement("div");
+        div.className = "order-box";
+        div.innerHTML = `
+          <h3>👤 ${order.nama} (Kelas ${order.kelas})</h3>
+          <p>🍽 ${pesananList}</p>
+          <p>💰 Total: Rp${order.total.toLocaleString()}</p>
+          <button class="btn btn-done" onclick="markDone(${order.id})">Selesai</button>
+        `;
+        ordersEl.appendChild(div);
+      });
+    }
+
+    function markDone(orderId) {
+      let orders = JSON.parse(localStorage.getItem("orders") || "[]");
+      orders = orders.filter(o => o.id !== orderId);
+      localStorage.setItem("orders", JSON.stringify(orders));
+      loadOrders();
+    }
+
+    loadOrders();
+  </script>
+</body>
+</html>
