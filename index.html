@@ -1,77 +1,396 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login Siswa</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vocal Remover – Browser Web App</title>
   <style>
-    body {
-      background-color: #121212;
-      color: white;
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-    .login-box {
-      background: #1e1e1e;
-      padding: 25px;
-      border-radius: 12px;
-      width: 320px;
-      text-align: center;
-      box-shadow: 0px 4px 8px rgba(0,0,0,0.6);
-    }
-    .login-box h2 {
-      margin-bottom: 20px;
-    }
-    input {
-      width: 90%;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 10px;
-      border: none;
-      outline: none;
-    }
-    button {
-      background: #007BFF;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 10px;
-      cursor: pointer;
-      color: white;
-      font-weight: bold;
-      margin-top: 10px;
-    }
-    button:hover {
-      background: #0056b3;
-    }
+    :root{--bg:#0f1220;--card:#161a2b;--muted:#8b93a7;--text:#e9edf7;--accent:#7c5cff;--accent2:#1fd1a5}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1200px 600px at 10% -20%,#1b2140 0%,#0f1220 60%),var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:48px auto;padding:0 20px}
+    header{display:flex;align-items:center;gap:16px;justify-content:space-between}
+    h1{font-size:28px;margin:0;letter-spacing:.2px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.35);padding:18px}
+    .grid{display:grid;grid-template-columns:1fr;gap:18px}
+    @media (min-width:980px){.grid{grid-template-columns: 1.1fr .9fr}}
+    .drop{border:2px dashed rgba(255,255,255,.15);border-radius:16px;padding:22px;text-align:center;transition:.2s;background:rgba(255,255,255,.02)}
+    .drop.drag{border-color:var(--accent);background:rgba(124,92,255,.08)}
+    .muted{color:var(--muted)}
+    .btn{background:linear-gradient(180deg,var(--accent),#5c3bff);color:white;border:0;border-radius:12px;padding:12px 14px;font-weight:600;cursor:pointer;transition:.2s;box-shadow:0 6px 20px rgba(124,92,255,.35)}
+    .btn.alt{background:linear-gradient(180deg,#2b3255,#1b203b);box-shadow:none;border:1px solid rgba(255,255,255,.08)}
+    .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .row{display:flex;align-items:center;gap:10px}
+    .row > label{min-width:130px}
+    input[type=range]{width:100%}
+    .meters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .meter{height:8px;background:#0a0d1a;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+    .meter > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),#45e8c0)}
+    .badgew{display:flex;gap:8px;flex-wrap:wrap}
+    .badge{font-size:12px;border-radius:999px;padding:6px 10px;border:1px solid rgba(255,255,255,.12);color:var(--muted);background:rgba(255,255,255,.04)}
+    footer{margin-top:22px;font-size:12px;color:#9aa3ba}
+    .tips{font-size:13px;line-height:1.5}
+    .hidden{display:none}
   </style>
 </head>
 <body>
-  <div class="login-box">
-    <h2>Login Siswa</h2>
-    <label>Nama:</label><br>
-    <input type="text" id="nama" placeholder="Masukkan Nama"><br>
-    <label>Kelas:</label><br>
-    <input type="text" id="kelas" placeholder="Masukkan Kelas"><br>
-    <button onclick="login()">Simpan</button>
+  <div class="wrap">
+    <header>
+      <h1>Vocal Remover <span class="muted" style="font-size:0.6em">(runs in your browser)</span></h1>
+      <div class="badgew">
+        <span class="badge">Client‑side processing</span>
+        <span class="badge">Stereo center‑cancel + M/S EQ</span>
+        <span class="badge">Export WAV</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div id="drop" class="drop">
+          <input id="file" type="file" accept="audio/*" class="hidden" />
+          <p style="margin:6px 0 4px"><strong>Drop a song here</strong> or <button class="btn alt" id="pick">Choose File</button></p>
+          <p class="muted" style="margin:8px 0 0">Best results with stereo tracks where vocals are centered.</p>
+        </div>
+
+        <div id="player" class="hidden" style="margin-top:14px">
+          <div class="row" style="gap:8px">
+            <button id="playOriginal" class="btn alt" disabled>▶︎ Play Original</button>
+            <button id="playProcessed" class="btn" disabled>▶︎ Play Instrumental</button>
+            <button id="renderBtn" class="btn alt" disabled>⭳ Export WAV</button>
+          </div>
+
+          <div class="meters" style="margin-top:12px">
+            <div class="meter"><span id="lvlL" style="width:0%"></span></div>
+            <div class="meter"><span id="lvlR" style="width:0%"></span></div>
+          </div>
+
+          <details style="margin-top:14px">
+            <summary class="muted">Processing controls</summary>
+            <div class="controls" style="margin-top:10px">
+              <div class="row"><label>Vocal reduction</label><input id="strength" type="range" min="0" max="1" step="0.01" value="0.85"><span id="strengthVal">0.85</span></div>
+              <div class="row"><label>Bass keep (Hz)</label><input id="bassCut" type="range" min="60" max="300" step="5" value="170"><span id="bassVal">170</span></div>
+              <div class="row"><label>Treble keep (kHz)</label><input id="trebleCut" type="range" min="5" max="14" step="0.1" value="9"><span id="trebleVal">9.0</span></div>
+              <div class="row"><label>Output gain (dB)</label><input id="outGain" type="range" min="-12" max="12" step="0.5" value="0"><span id="outVal">0</span></div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <aside class="card">
+        <h3 style="margin:4px 0 10px">How it works</h3>
+        <div class="tips">
+          <p>This app uses a classic mid/side (M/S) technique:
+          we isolate the <em>mid</em> (L+R)/2 — where vocals are usually centered — and attenuate it in the vocal band, while preserving bass and air. Then we reconstruct stereo from processed mid plus the untouched <em>side</em> (L−R)/2.</p>
+          <ul>
+            <li><strong>Vocal reduction</strong>: how much to suppress the mid band (higher = fewer vocals, may affect snare/lead).</li>
+            <li><strong>Bass keep</strong>: keeps sub/bass by letting low frequencies from the mid through.</li>
+            <li><strong>Treble keep</strong>: keeps high‑end (cymbals/air) from the mid.</li>
+            <li>Works best on stereo mixes; mono or hard‑panned vocals won’t remove cleanly.</li>
+          </ul>
+          <p class="muted">For studio‑quality stem separation, use ML models like Spleeter/Demucs offline. This app prioritizes privacy and speed in‑browser.</p>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="card">
+      <div>Tip: If vocals still leak, lower <em>Treble keep</em> and raise <em>Vocal reduction</em>. For karaoke, you can also export the <em>difference</em> by muting bass (set Bass keep high).</div>
+    </footer>
   </div>
 
-  <script>
-    function login() {
-      let nama = document.getElementById("nama").value;
-      let kelas = document.getElementById("kelas").value;
+<script>
+(function(){
+  const pick = document.getElementById('pick');
+  const fileInput = document.getElementById('file');
+  const drop = document.getElementById('drop');
+  const playerUI = document.getElementById('player');
+  const playOrigBtn = document.getElementById('playOriginal');
+  const playProcBtn = document.getElementById('playProcessed');
+  const renderBtn = document.getElementById('renderBtn');
+  const lvlL = document.getElementById('lvlL');
+  const lvlR = document.getElementById('lvlR');
 
-      if (nama && kelas) {
-        localStorage.setItem("nama", nama);
-        localStorage.setItem("kelas", kelas);
-        window.location.href = "login.html";
-      } else {
-        alert("Harap isi nama dan kelas!");
+  const strength = document.getElementById('strength');
+  const bassCut = document.getElementById('bassCut');
+  const trebleCut = document.getElementById('trebleCut');
+  const outGain = document.getElementById('outGain');
+  const strengthVal = document.getElementById('strengthVal');
+  const bassVal = document.getElementById('bassVal');
+  const trebleVal = document.getElementById('trebleVal');
+  const outVal = document.getElementById('outVal');
+
+  strength.oninput = () => strengthVal.textContent = (+strength.value).toFixed(2);
+  bassCut.oninput = () => bassVal.textContent = Math.round(+bassCut.value);
+  trebleCut.oninput = () => trebleVal.textContent = (+trebleCut.value).toFixed(1);
+  outGain.oninput = () => outVal.textContent = (+outGain.value).toFixed(1);
+
+  let ctx, srcBuf;
+  let origSource, procGraph;
+  let playingOrig = false, playingProc = false;
+
+  pick.addEventListener('click', ()=> fileInput.click());
+
+  drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', ()=> drop.classList.remove('drag'));
+  drop.addEventListener('drop', (e)=>{ e.preventDefault(); drop.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+  fileInput.addEventListener('change', ()=> handleFiles(fileInput.files));
+
+  function handleFiles(files){
+    const f = files && files[0];
+    if(!f) return;
+    if(!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
+    f.arrayBuffer().then(buf=> ctx.decodeAudioData(buf)).then((ab)=>{
+      srcBuf = ab;
+      enableUI();
+      buildProcessedGraph();
+    }).catch(err=> alert('Could not decode audio: '+err));
+  }
+
+  function enableUI(){
+    playerUI.classList.remove('hidden');
+    playOrigBtn.disabled = false; playProcBtn.disabled = false; renderBtn.disabled = false;
+  }
+
+  function stopAll(){
+    if(origSource){ try{origSource.stop();}catch{}}; playingOrig=false; playOrigBtn.textContent='▶︎ Play Original';
+    if(procGraph && procGraph.source){ try{procGraph.source.stop();}catch{}}; playingProc=false; playProcBtn.textContent='▶︎ Play Instrumental';
+  }
+
+  function createLevelMeter(node){
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    node.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    function tick(){
+      analyser.getByteTimeDomainData(data);
+      let sum=0; for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum+=v*v; }
+      const rms = Math.sqrt(sum/data.length);
+      return (rms*100);
+    }
+    return { analyser, tick };
+  }
+
+  function buildProcessedGraph(){
+    if(!ctx || !srcBuf) return;
+    if(procGraph && procGraph.nodes){ procGraph.nodes.forEach(n=>{ try{n.disconnect();}catch{}}); }
+
+    const source = ctx.createBufferSource();
+    source.buffer = srcBuf;
+
+    // Split to L/R
+    const split = ctx.createChannelSplitter(2);
+    source.connect(split);
+
+    // Build Mid = (L+R)/2 and Side = (L-R)/2 using gains and mergers
+    const gL1 = ctx.createGain(); gL1.gain.value = 0.5;
+    const gR1 = ctx.createGain(); gR1.gain.value = 0.5;
+    split.connect(gL1, 0);
+    split.connect(gR1, 1);
+    const midMerger = ctx.createGain(); // we'll sum into this, treat as bus
+    gL1.connect(midMerger);
+    gR1.connect(midMerger);
+
+    const gL2 = ctx.createGain(); gL2.gain.value = 0.5;
+    const gR2 = ctx.createGain(); gR2.gain.value = -0.5; // invert R
+    split.connect(gL2, 0);
+    split.connect(gR2, 1);
+    const sideMerger = ctx.createGain();
+    gL2.connect(sideMerger);
+    gR2.connect(sideMerger);
+
+    // Filters for mid band preservation/removal
+    const bassHP = ctx.createBiquadFilter(); bassHP.type='highpass'; bassHP.frequency.value = +bassCut.value; // keep bass through HP on removal path
+    const trebleLP = ctx.createBiquadFilter(); trebleLP.type='lowpass'; trebleLP.frequency.value = (+trebleCut.value)*1000; // keep air
+
+    // Peaking EQ to reduce vocal band in the mid
+    const vocalPeak = ctx.createBiquadFilter(); vocalPeak.type='peaking'; vocalPeak.frequency.value = 1500; vocalPeak.Q.value = 1.2; vocalPeak.gain.value = (-24 * +strength.value);
+
+    // Chain: mid -> [bass + treble keep around] -> vocal reduction
+    // We create two parallel kept bands (low/high) plus a mid with notch via peaking negative gain, then sum.
+    const midBus = ctx.createGain();
+    midMerger.connect(vocalPeak);
+    vocalPeak.connect(midBus);
+
+    const lowKeep = ctx.createBiquadFilter(); lowKeep.type='lowpass'; lowKeep.frequency.value = +bassCut.value; // allow low from mid
+    midMerger.connect(lowKeep);
+    lowKeep.connect(midBus);
+
+    const highKeep = ctx.createBiquadFilter(); highKeep.type='highpass'; highKeep.frequency.value = (+trebleCut.value)*1000; // allow highs from mid
+    midMerger.connect(highKeep);
+    highKeep.connect(midBus);
+
+    // Side path (optionally could EQ slightly)
+    const sideBus = ctx.createGain(); sideMerger.connect(sideBus);
+
+    // Reconstruct L = mid + side, R = mid - side
+    const outL = ctx.createGain(); const outR = ctx.createGain();
+    const sToL = ctx.createGain(); sToL.gain.value = 1.0; sideBus.connect(sToL); sToL.connect(outL);
+    const sToR = ctx.createGain(); sToR.gain.value = -1.0; sideBus.connect(sToR); sToR.connect(outR);
+    const mToL = ctx.createGain(); mToL.gain.value = 1.0; midBus.connect(mToL); mToL.connect(outL);
+    const mToR = ctx.createGain(); mToR.gain.value = 1.0; midBus.connect(mToR); mToR.connect(outR);
+
+    const merger = ctx.createChannelMerger(2);
+    outL.connect(merger, 0, 0);
+    outR.connect(merger, 0, 1);
+
+    // Output gain
+    const outGainNode = ctx.createGain(); outGainNode.gain.value = dbToGain(+outGain.value);
+    merger.connect(outGainNode);
+    outGain.oninput = ()=> { outGainNode.gain.value = dbToGain(+outGain.value); };
+
+    // Update dynamic controls live
+    strength.oninput = ()=> { vocalPeak.gain.value = (-24 * +strength.value); strengthVal.textContent = (+strength.value).toFixed(2); };
+    bassCut.oninput = ()=> { lowKeep.frequency.value = +bassCut.value; bassHP.frequency.value = +bassCut.value; bassVal.textContent = Math.round(+bassCut.value); };
+    trebleCut.oninput = ()=> { highKeep.frequency.value = (+trebleCut.value)*1000; trebleVal.textContent = (+trebleCut.value).toFixed(1); };
+
+    // Connect to destination and meters
+    const dest = ctx.createGain(); outGainNode.connect(dest); dest.connect(ctx.destination);
+    const meterL = createLevelMeter(outL);
+    const meterR = createLevelMeter(outR);
+
+    // Simple animation for meters while playing processed
+    let raf;
+    function animateMeters(){
+      lvlL.style.width = Math.min(100, meterL.tick()*1.8)+'%';
+      lvlR.style.width = Math.min(100, meterR.tick()*1.8)+'%';
+      raf = requestAnimationFrame(animateMeters);
+    }
+
+    procGraph = { source, nodes:[source,split,gL1,gR1,gL2,gR2,midMerger,sideMerger,bassHP,trebleLP,vocalPeak,midBus,lowKeep,highKeep,sideBus,outL,outR,sToL,sToR,mToL,mToR,merger,outGainNode,dest], start(){
+      cancelAnimationFrame(raf);
+      const now = ctx.currentTime + 0.03;
+      const newSource = ctx.createBufferSource(); newSource.buffer = srcBuf; // recreate for replay
+      // reconnect
+      newSource.connect(split);
+      this.source = newSource;
+      newSource.start(now);
+      animateMeters();
+      newSource.onended = ()=>{ cancelAnimationFrame(raf); playingProc=false; playProcBtn.textContent='▶︎ Play Instrumental'; };
+    }, stop(){
+      if(this.source){ try{ this.source.stop(); }catch{} }
+      cancelAnimationFrame(raf);
+      lvlL.style.width = '0%'; lvlR.style.width = '0%';
+    }}
+  }
+
+  function dbToGain(db){ return Math.pow(10, db/20); }
+
+  playOrigBtn.addEventListener('click', ()=>{
+    if(!ctx || !srcBuf) return;
+    if(playingOrig){ if(origSource){ try{origSource.stop();}catch{} }; playingOrig=false; playOrigBtn.textContent='▶︎ Play Original'; return; }
+    stopAll();
+    origSource = ctx.createBufferSource();
+    origSource.buffer = srcBuf;
+    origSource.connect(ctx.destination);
+    origSource.start();
+    playingOrig = true; playOrigBtn.textContent = '⏸ Pause Original';
+    origSource.onended = ()=>{ playingOrig=false; playOrigBtn.textContent='▶︎ Play Original'; };
+  });
+
+  playProcBtn.addEventListener('click', ()=>{
+    if(!ctx || !srcBuf || !procGraph) return;
+    if(playingProc){ procGraph.stop(); playingProc=false; playProcBtn.textContent='▶︎ Play Instrumental'; return; }
+    stopAll();
+    procGraph.start(); playingProc = true; playProcBtn.textContent = '⏸ Pause Instrumental';
+  });
+
+  renderBtn.addEventListener('click', async ()=>{
+    if(!srcBuf){ alert('Load a song first.'); return; }
+    try{
+      const sampleRate = 44100; // render target
+      const offline = new OfflineAudioContext(2, Math.ceil(srcBuf.duration*sampleRate), sampleRate);
+
+      // Build the same graph inside OfflineAudioContext
+      const source = offline.createBufferSource();
+      // resample if needed
+      const resampled = await resampleBuffer(srcBuf, offline);
+      source.buffer = resampled;
+
+      const split = offline.createChannelSplitter(2); source.connect(split);
+
+      const gL1 = offline.createGain(); gL1.gain.value = 0.5; split.connect(gL1,0);
+      const gR1 = offline.createGain(); gR1.gain.value = 0.5; split.connect(gR1,1);
+      const midBus = offline.createGain(); gL1.connect(midBus); gR1.connect(midBus);
+
+      const gL2 = offline.createGain(); gL2.gain.value = 0.5; split.connect(gL2,0);
+      const gR2 = offline.createGain(); gR2.gain.value = -0.5; split.connect(gR2,1);
+      const sideBus = offline.createGain(); gL2.connect(sideBus); gR2.connect(sideBus);
+
+      const vocalPeak = offline.createBiquadFilter(); vocalPeak.type='peaking'; vocalPeak.frequency.value=1500; vocalPeak.Q.value=1.2; vocalPeak.gain.value=(-24 * +strength.value);
+      const lowKeep = offline.createBiquadFilter(); lowKeep.type='lowpass'; lowKeep.frequency.value=+bassCut.value;
+      const highKeep = offline.createBiquadFilter(); highKeep.type='highpass'; highKeep.frequency.value=(+trebleCut.value)*1000;
+
+      const midSum = offline.createGain();
+      midBus.connect(vocalPeak); vocalPeak.connect(midSum);
+      midBus.connect(lowKeep); lowKeep.connect(midSum);
+      midBus.connect(highKeep); highKeep.connect(midSum);
+
+      const outL = offline.createGain(); const outR = offline.createGain();
+      const sToL = offline.createGain(); sToL.gain.value=1.0; sideBus.connect(sToL); sToL.connect(outL);
+      const sToR = offline.createGain(); sToR.gain.value=-1.0; sideBus.connect(sToR); sToR.connect(outR);
+      const mToL = offline.createGain(); mToL.gain.value=1.0; midSum.connect(mToL); mToL.connect(outL);
+      const mToR = offline.createGain(); mToR.gain.value=1.0; midSum.connect(mToR); mToR.connect(outR);
+
+      const merger = offline.createChannelMerger(2);
+      const outGainNode = offline.createGain(); outGainNode.gain.value = dbToGain(+outGain.value);
+      outL.connect(merger,0,0); outR.connect(merger,0,1); merger.connect(outGainNode); outGainNode.connect(offline.destination);
+
+      const rendered = await offline.startRendering();
+      const wav = audioBufferToWav(rendered);
+      const blob = new Blob([wav], {type:'audio/wav'});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url; a.download = 'instrumental.wav'; a.click();
+      URL.revokeObjectURL(url);
+    }catch(err){ console.error(err); alert('Export failed: '+err); }
+  });
+
+  async function resampleBuffer(buffer, targetCtx){
+    if(buffer.sampleRate === targetCtx.sampleRate){ return buffer; }
+    const offline = new OfflineAudioContext(buffer.numberOfChannels, Math.ceil(buffer.duration*targetCtx.sampleRate), targetCtx.sampleRate);
+    const src = offline.createBufferSource(); src.buffer = buffer; src.connect(offline.destination); src.start();
+    return await offline.startRendering();
+  }
+
+  function audioBufferToWav(buffer){
+    const numOfChan = buffer.numberOfChannels;
+    const length = buffer.length * numOfChan * 2 + 44;
+    const bufferArr = new ArrayBuffer(length);
+    const view = new DataView(bufferArr);
+
+    writeUTFBytes(view, 0, 'RIFF');
+    view.setUint32(4, 36 + buffer.length * numOfChan * 2, true);
+    writeUTFBytes(view, 8, 'WAVE');
+    writeUTFBytes(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numOfChan, true);
+    view.setUint32(24, buffer.sampleRate, true);
+    view.setUint32(28, buffer.sampleRate * numOfChan * 2, true);
+    view.setUint16(32, numOfChan * 2, true);
+    view.setUint16(34, 16, true);
+    writeUTFBytes(view, 36, 'data');
+    view.setUint32(40, buffer.length * numOfChan * 2, true);
+
+    // interleave and write
+    const channels = [];
+    for (let i = 0; i < numOfChan; i++) channels.push(buffer.getChannelData(i));
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let ch = 0; ch < numOfChan; ch++) {
+        let sample = Math.max(-1, Math.min(1, channels[ch][i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
       }
     }
-  </script>
+    return bufferArr;
+  }
+
+  function writeUTFBytes(view, offset, string) {
+    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+  }
+})();
+</script>
 </body>
 </html>
