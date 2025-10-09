@@ -1,8 +1,65 @@
-// ---------- Config ----------
-const PIPED_API = "https://piped.video"; // change to another Piped instance if needed
+/* script.js (ES module) — Frontend-only YouTube → MP3/MP4
+   - Auto-rotates across multiple public Piped API instances
+   - MP4: direct progressive stream download
+   - MP3: in-browser conversion with ffmpeg.wasm
+   - No server required
+*/
 
-// ---------- DOM ----------
+// -------------------- Public API rotation --------------------
+const PIPED_APIS = [
+  "https://pipedapi.kavin.rocks",
+  "https://pipedapi.adminforge.de",
+  "https://pipedapi.syncpundit.io",
+  "https://pipedapi.nosebs.de",
+  "https://pipedapi.tokhmi.xyz",
+];
+
+let currentAPIIndex = 0;
+let lastHealthyAPI = null;
+
+/** Try HEAD on endpoint across mirrors; cache the first that responds. */
+async function chooseAPI(endpoint = "/api/v1/trending") {
+  // If we already have a good API cached, use it first.
+  if (lastHealthyAPI) return lastHealthyAPI;
+
+  const attempts = [];
+  for (let i = 0; i < PIPED_APIS.length; i++) {
+    const base = PIPED_APIS[(currentAPIIndex + i) % PIPED_APIS.length];
+    attempts.push(
+      fetch(base + endpoint, { method: "HEAD" })
+        .then((r) => (r.ok || r.status === 404 ? base : null))
+        .catch(() => null)
+    );
+  }
+  const results = await Promise.all(attempts);
+  const healthy = results.find(Boolean);
+  if (!healthy) throw new Error("All public API instances seem offline or blocked.");
+  lastHealthyAPI = healthy;
+  currentAPIIndex = PIPED_APIS.indexOf(healthy);
+  return healthy;
+}
+
+/** If a call fails, rotate to next API and retry once. */
+async function apiFetchJSON(path) {
+  try {
+    const base = await chooseAPI(path);
+    const r = await fetch(base + path);
+    if (!r.ok) throw new Error(`API error ${r.status}`);
+    return await r.json();
+  } catch (e) {
+    // Rotate and try one more time
+    lastHealthyAPI = null;
+    currentAPIIndex = (currentAPIIndex + 1) % PIPED_APIS.length;
+    const base2 = await chooseAPI(path);
+    const r2 = await fetch(base2 + path);
+    if (!r2.ok) throw new Error(`API error ${r2.status}`);
+    return await r2.json();
+  }
+}
+
+// -------------------- DOM refs --------------------
 const $ = (id) => document.getElementById(id);
+
 const input = $("urlInput");
 const clearBtn = $("clearBtn");
 
@@ -19,8 +76,9 @@ const progressRow = $("progressRow");
 const progressText = $("progressText");
 const progressBar = $("progressBar");
 
-// ---------- Helpers ----------
-const YT_RE = /https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_\-]{6,})/i;
+// -------------------- Helpers --------------------
+const YT_RE =
+  /https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_\-]{6,})/i;
 
 function getVideoId(url) {
   try {
@@ -29,119 +87,148 @@ function getVideoId(url) {
     if (u.searchParams.get("v")) return u.searchParams.get("v");
     const m = url.match(YT_RE);
     return m ? m[3] : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-const debounce = (fn, ms=400)=>{let t;return (...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};};
-const human = (sec)=> {
-  sec = Math.max(0, Number(sec)||0);
-  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = Math.floor(sec%60);
-  return (h? `${h}:` : "") + `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+const debounce = (fn, ms = 400) => {
+  let t;
+  return (...a) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...a), ms);
+  };
 };
 
-function setProgress(text, pct){ progressRow.hidden=false; progressText.textContent=text; progressBar.style.width = `${pct}%`; }
-function clearProgress(){ progressRow.hidden=true; progressBar.style.width = "0%"; progressText.textContent=""; }
+const human = (sec) => {
+  sec = Math.max(0, Number(sec) || 0);
+  const h = Math.floor(sec / 3600),
+    m = Math.floor((sec % 3600) / 60),
+    s = Math.floor(sec % 60);
+  return (h ? `${h}:` : "") + `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
 
-// ---------- UI events ----------
-const maybeFetch = debounce(async ()=>{
+function setProgress(text, pct) {
+  progressRow.hidden = false;
+  progressText.textContent = text;
+  progressBar.style.width = `${pct}%`;
+}
+function clearProgress() {
+  progressRow.hidden = true;
+  progressBar.style.width = "0%";
+  progressText.textContent = "";
+}
+
+function sanitize(s) {
+  return (s || "file").replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 120) || "file";
+}
+
+function pickBestMp4(muxed) {
+  const candidates = (muxed || [])
+    .filter((s) => /mp4/i.test(s.container || s.mimeType || ""))
+    .sort((a, b) => (parseInt(b.quality ?? 0) - parseInt(a.quality ?? 0)));
+  return candidates[0] || (muxed || [])[0] || null;
+}
+function pickBestAudio(audios) {
+  return [...(audios || [])].sort((a, b) => (parseInt(b.bitrate || 0) - parseInt(a.bitrate || 0)))[0] || null;
+}
+
+// -------------------- UI events --------------------
+const maybeFetch = debounce(async () => {
   const id = getVideoId(input.value.trim());
   if (!id) return;
   await loadInfo(id);
 }, 350);
 
 input.addEventListener("input", maybeFetch);
-input.addEventListener("paste", () => setTimeout(()=> {
-  const id = getVideoId(input.value.trim());
-  if (id) loadInfo(id);
-}, 200));
+input.addEventListener("paste", () =>
+  setTimeout(() => {
+    const id = getVideoId(input.value.trim());
+    if (id) loadInfo(id);
+  }, 200)
+);
 
-clearBtn.addEventListener("click", ()=>{ input.value=""; preview.hidden=true; clearProgress(); });
+clearBtn.addEventListener("click", () => {
+  input.value = "";
+  preview.hidden = true;
+  clearProgress();
+});
 
-// ---------- Core: fetch info & set links ----------
-async function loadInfo(videoId){
-  try{
+// -------------------- Load info & wire actions --------------------
+async function loadInfo(videoId) {
+  try {
     clearProgress();
-    const r = await fetch(`${PIPED_API}/api/v1/streams/${videoId}`);
-    if(!r.ok) throw new Error("Failed to fetch video info");
-    const data = await r.json();
+    const data = await apiFetchJSON(`/api/v1/streams/${videoId}`);
 
-    // Basic info
     titleEl.textContent = data.title || "—";
     byEl.textContent = data.uploader ? `by ${data.uploader}` : "";
     durEl.textContent = data.duration ? human(data.duration) : "";
     if (data.thumbnailUrl) thumb.src = data.thumbnailUrl;
 
-    // Choose best progressive MP4 for direct download
+    // MP4 link (progressive)
     const mp4 = pickBestMp4(data.muxedStreams || []);
-    mp4Link.href = mp4?.url || "#";
-    mp4Link.download = sanitize((data.title || "video")) + ".mp4";
-    mp4Link.classList.toggle("disabled", !mp4);
+    if (mp4 && mp4.url) {
+      mp4Link.href = mp4.url;
+      mp4Link.download = sanitize(data.title) + ".mp4";
+      mp4Link.classList.remove("disabled");
+      mp4Link.setAttribute("aria-disabled", "false");
+    } else {
+      mp4Link.href = "#";
+      mp4Link.classList.add("disabled");
+      mp4Link.setAttribute("aria-disabled", "true");
+    }
 
-    // Prepare MP3 handler (convert in-browser from best audio)
+    // MP3 conversion (best audio)
     const bestAudio = pickBestAudio(data.audioStreams || []);
     mp3Btn.onclick = async () => {
-      if (!bestAudio) return;
+      if (!bestAudio?.url) return alert("No audio stream found.");
       try {
-        await downloadAsMp3(bestAudio.url, (data.title || "audio"));
+        await downloadAsMp3(bestAudio.url, data.title || "audio");
       } catch (e) {
         console.error(e);
-        alert("MP3 conversion failed. Try again or another Piped instance.");
+        alert("MP3 conversion failed or was blocked. Try again or switch API instance.");
       } finally {
         clearProgress();
       }
     };
 
     preview.hidden = false;
-  }catch(err){
+  } catch (err) {
     console.error(err);
     preview.hidden = true;
     alert("Could not load video data. The public API might be rate-limited; try again later or switch instance.");
   }
 }
 
-function pickBestMp4(muxed){
-  // prefer highest quality MP4 (container may be "mp4")
-  const candidates = muxed
-    .filter(s => /mp4/i.test(s.container || s.mimeType || ""))
-    .sort((a,b)=> (b.quality ?? 0) - (a.quality ?? 0));
-  return candidates[0] || muxed[0] || null;
-}
-function pickBestAudio(audios){
-  // prefer highest bitrate and m4a/webm
-  return [...audios].sort((a,b)=> (parseInt(b.bitrate||0) - parseInt(a.bitrate||0)) )[0] || null;
-}
-function sanitize(s){ return s.replace(/[\\/:*?"<>|]/g,"").trim().slice(0,120) || "file"; }
-
-// ---------- MP3 conversion with ffmpeg.wasm ----------
+// -------------------- ffmpeg.wasm MP3 conversion --------------------
 import { FFmpeg } from "https://esm.sh/@ffmpeg/ffmpeg@0.12.10";
 import { fetchFile } from "https://esm.sh/@ffmpeg/util@0.12.2";
 
 let ffmpeg;
 let ffmpegReady = false;
 
-async function ensureFFmpeg(){
+async function ensureFFmpeg() {
   if (ffmpegReady) return;
   setProgress("Loading converter (~20–30 MB)…", 5);
   ffmpeg = new FFmpeg();
-  await ffmpeg.load(); // loads core + codecs from CDN
+  await ffmpeg.load(); // loads core+codecs from CDN
   ffmpegReady = true;
-  setProgress("Converter ready.", 20);
+  setProgress("Converter ready.", 15);
 }
 
-async function downloadAsMp3(sourceUrl, baseName){
+async function downloadAsMp3(sourceUrl, baseName) {
   await ensureFFmpeg();
 
-  // Fetch audio stream to memory
+  // Fetch audio stream into memory (CORS-friendly)
   setProgress("Fetching audio…", 35);
-  const audioData = await fetchFile(sourceUrl); // handles CORS-friendly fetch/arrayBuffer
+  const audioData = await fetchFile(sourceUrl);
 
-  // Write input, transcode to mp3
-  const inName = "in.webm"; // container doesn't matter; ffmpeg detects
+  // Transcode to MP3
+  const inName = "in.webm";
   const outName = "out.mp3";
   await ffmpeg.writeFile(inName, audioData);
 
-  setProgress("Converting to MP3…", 55);
-  // -vn (no video), -ar 44100, -b:a 192k
+  setProgress("Converting to MP3…", 60);
   await ffmpeg.exec(["-i", inName, "-vn", "-ar", "44100", "-b:a", "192k", "-f", "mp3", outName]);
 
   setProgress("Preparing download…", 90);
@@ -153,6 +240,6 @@ async function downloadAsMp3(sourceUrl, baseName){
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(()=> URL.revokeObjectURL(a.href), 1500);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
   setProgress("Done!", 100);
 }
