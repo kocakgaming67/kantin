@@ -1,0 +1,59 @@
+/* Background (soft animated black↔white gradient) */
+body{
+  margin:0;height:100vh;display:flex;justify-content:center;align-items:center;
+  background:linear-gradient(135deg,#000,#fff);
+  background-size:400% 400%;animation:gshift 10s ease infinite;
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#f5f5f5;
+}
+@keyframes gshift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+/* Card */
+.wrap{
+  width:92%;max-width:760px;padding:26px;border-radius:24px;
+  background:rgba(255,255,255,.08);backdrop-filter:blur(18px);
+  box-shadow:0 10px 40px rgba(0,0,0,.45);color:#fff;
+}
+h1{margin:0 0 8px;font-size:1.7rem}
+.sub{margin:0;color:#e8e8e8;opacity:.9}
+
+/* Controls: tight capsule group */
+.controls{margin-top:16px;display:flex;flex-direction:column}
+.controls input{
+  padding:14px 16px;border:1px solid rgba(255,255,255,.25);
+  border-radius:16px 16px 0 0;background:rgba(255,255,255,.18);color:#fff;outline:none;
+}
+.controls button{
+  padding:12px 16px;border:1px solid rgba(255,255,255,.25);border-top:none;
+  border-radius:0 0 16px 16px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;
+}
+.controls button:hover{background:rgba(255,255,255,.28)}
+
+/* Preview section */
+.preview{margin-top:22px;display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:center}
+.preview img{width:160px;height:160px;object-fit:cover;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.meta .title{font-weight:800}
+.meta .by,.meta .dur{color:#e9e9e9;opacity:.9}
+
+/* Actions */
+.actions{grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.btn.glass{
+  display:inline-block;padding:12px 16px;border-radius:14px;text-decoration:none;
+  background:radial-gradient(120% 120% at 0% 0%,rgba(110,231,183,.14),transparent 40%),
+             radial-gradient(120% 120% at 100% 100%,rgba(96,165,250,.12),transparent 40%),
+             rgba(255,255,255,.18);
+  color:#fff;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(14px);
+  box-shadow:0 10px 28px rgba(0,0,0,.35);cursor:pointer;user-select:none;
+}
+.btn.glass:hover{transform:translateY(-1px)}
+
+/* Progress */
+.progress-row{grid-column:1 / -1;margin-top:8px}
+.progress-row .bar{height:10px;background:rgba(255,255,255,.18);border-radius:999px;overflow:hidden}
+#progressBar{height:100%;width:0%;background:linear-gradient(90deg,#6ee7b7,#60a5fa)}
+#progressText{font-size:.92rem;color:#e9e9e9;margin-bottom:6px}
+
+/* Responsive */
+@media (max-width:720px){
+  .preview{grid-template-columns:120px 1fr}
+  .preview img{width:120px;height:120px}
+}
